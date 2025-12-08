@@ -1,0 +1,4 @@
+testing_doc = [
+    ["Tri Dao: Assistant Professor of Computer Science at Princeton University.\n Chief Scientist at Together AI. \n Previously: PhD, Department of Computer Science, Stanford University \n research Interests \n Machine learning and systems, with a focus on efficient training and long-range context:\n Efficient Transformer training and inference. \n Sequence models with long-range memory. \n Structured sparsity for compact deep learning models.", "https://tridao.me/"], 
+    ["梁文锋是广东省湛江市吴川市覃巴镇米历岭村，父母为吴川梅菉小学教师。其从小成绩优异，1996年，从梅菉小学直升至吴川市第一中学，在数学表现出极大天赋，初中时期甚至开始学习大学的数学课程。2002年，以全校第一成绩被浙江大学电子信息工程专业录取，2007年，攻读浙江大学信息与通信工程专业硕士，主攻机器视觉研究。 2007年—2008年环球金融危机期间，梁文锋与同学组建了一个团队，探索如何通过机器学习进行量化交易。 2009年，曾以实习生身份入职上海艾麒信息，后经推荐直接担任新技术部经理。", "https://zh.wikipedia.org/wiki/%E6%A2%81%E6%96%87%E9%94%8B"]
+]
