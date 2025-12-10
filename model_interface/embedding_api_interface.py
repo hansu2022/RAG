@@ -46,7 +46,6 @@ class EmbedAPIInterface(ABC):
             dimensions=self.embed_dim,
             encoding_format="float"
         )
-
         return self.unwrap_output(completion, squeeze)
     
     def unwrap_output(self, output):

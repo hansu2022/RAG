@@ -146,25 +146,30 @@ class QwenAPIAgent(LLM_agent):
         self.db = MilvusSciInovDB() # 初始化 Milvus 数据库实例
         
     def _format_context(self, search_results):
-        """将检索结果格式化为 LLM 可读的字符串"""
+        """
+        [修改] 适配新的通用知识库返回格式
+        将检索结果格式化为 LLM 可读的字符串
+        """
         if not search_results:
             return ""
         
-        # 假设 search_results 是 List[dict]，我们将其转换为易读的上下文
-        context_str = "检索到的相关知识：\n"
-        for item in search_results:
-            # 根据您贴出的结果，可以提取关键信息
-            name = item.get('name', '未知专家')
-            dept = item.get('dept', '未知院系')
-            research = item.get('research', '未知研究方向')
-            summary = item.get('summary', '无摘要')
+        context_str = "检索到的相关参考资料：\n"
+        
+        for i, item in enumerate(search_results, 1):
+            # 兼容新旧字段，防止报错
+            content = item.get('content', item.get('summary', ''))  # 新字段 content, 旧字段 summary
+            source = item.get('source', item.get('url', '未知来源'))
+            category = item.get('category', 'general') # 新增的分类标签
+            score = item.get('score', 0.0)
             
+            # 拼接更紧凑的上下文
             context_str += (
-                f"- 专家姓名: {name}\n"
-                f"  所在院系: {dept}\n"
-                f"  研究方向: {research}\n"
-                f"  摘要信息: {summary}\n"
+                f"【资料 {i}】(类型: {category})\n"
+                f"来源: {source}\n"
+                f"内容摘要: {content}\n"
+                f"--------------------------------\n"
             )
+            
         return context_str + "\n"
 
 

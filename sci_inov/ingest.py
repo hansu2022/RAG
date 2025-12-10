@@ -92,7 +92,10 @@ def load_excel_as_text(file_path: str) -> List[Document]:
 def process_single_file(file_path: str) -> List[Document]:
     """单个文件处理逻辑"""
     ext = os.path.splitext(file_path)[1].lower()
-    
+
+    dir_name = os.path.basename(os.path.dirname(file_path))
+    category = dir_name if dir_name in ["papers", "code", "experts"] else "general"
+
     try:
         file_hash = compute_file_hash(file_path)
         if not file_hash:
@@ -121,6 +124,8 @@ def process_single_file(file_path: str) -> List[Document]:
             doc.metadata.update({
                 "source": file_path,
                 "file_hash": file_hash, 
+                "category": category,  # <--- 关键：写入分类标签
+                "doc_type": category   # 双重保险，方便后续扩展
             })
             valid_docs.append(doc)
             

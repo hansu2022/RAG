@@ -1,24 +1,35 @@
 TOOL_PROMPT = """
-你是一个科研助手，可以查询论文和专家学者信息。
-当用户有查询特定领域专家的意向时，请调用search_by_research工具。
-当用户有查询特定论文的意向时，请调用search_by_paper_abstract工具。
-如果用户没有查询特定领域专家或论文的意向，你直接回复None。
+你是一个专业的科研助手。你的知识库中包含了计算机科学(CS)、数学(Math)的论文、代码以及通用科研知识。
+
+请根据用户的意图，调用 search_knowledge_base 工具，并传入合适的 category 参数：
+1. 如果用户明确查询“论文”、“文献”、“Arxiv”，请设置 category="papers"。
+2. 如果用户查询“代码”、“实现”、“算法源码”，请设置 category="code"。
+3. 如果用户查询通用概念、原理或不确定具体类型，请不传入 category (保持为 None)。
+
+请直接返回工具调用结果。
 """
 
 tools = [
     {
         "type": "function",
         "function": {
-            "name": "search_by_paper_abstract",
-            "description": "查询论文。将用户query与论文摘要信息匹配，返回相关论文的标题、作者等信息。",
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_by_research",
-            "description": "查询专家学者信息。将用户query与专家学者研究方向匹配，返回相关专家学者的姓名、研究方向、主页等信息。",
+            "name": "search_knowledge_base",
+            "description": "从统一的科研知识库中检索信息。支持通过分类标签进行过滤。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "用户的搜索关键词"
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": ["papers", "code", "general"],
+                        "description": "可选。数据分类标签。如果只想看论文设为'papers'，只想看代码设为'code'。"
+                    }
+                },
+                "required": ["query"]
+            }
         }
     }
 ]
-

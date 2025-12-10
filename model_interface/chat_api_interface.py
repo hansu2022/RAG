@@ -4,7 +4,8 @@ import logging
 import getpass
 from openai import OpenAI
 from abc import ABC
-
+import json
+from typing import List
 class ChatAPIInterface(ABC):
     """通用的对话API接口抽象类"""
     
@@ -68,26 +69,53 @@ class QwenAPIInterface(ChatAPIInterface):
             api_key_env_name="DASHSCOPE_API_KEY"
         )
 
-    def tool_call(self, query: str, tools: list, system_prompt: str = "You are a helpful assistant."):
-        completion = self.client.chat.completions.create(
-            model = self.model_name,
-            messages = [
+    def tool_call(self, query: str, tools: list, system_prompt: str = "You are a helpful assistant.") -> List[dict]:
+        """
+        调用通义千问的 function calling，返回完整的工具名 + 参数字典列表
+        返回示例: 
+        [
             {
-                "role": "system",
-                "content": system_prompt,
-            },
-            {
-                "role": "user",
-                "content": query
+                "name": "search_knowledge_base",
+                "arguments": {"query": "Transformer", "category": "code"}
             }
+        ]
+        """
+        completion = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": query}
             ],
-            tools=tools
+            tools=tools,
+            tool_choice="auto"  # 关键：让模型自由决定是否调用工具
         )
-        tool_call = completion.choices[0].message.tool_calls
-        tool_names = []
-        if tool_call:
-            tool_names = [t.function.name for t in tool_call]
-        return tool_names
+
+        message = completion.choices[0].message
+        if not hasattr(message, "tool_calls") or not message.tool_calls:
+            logging.info("LLM 决定不调用任何工具")
+            return []  # 空列表表示不调用
+
+        results = []
+        for tool_call in message.tool_calls:
+            if tool_call.type != "function":
+                continue
+                
+            func = tool_call.function
+            try:
+                # 安全解析 JSON 参数
+                args = json.loads(func.arguments)
+            except json.JSONDecodeError as e:
+                logging.error(f"工具参数 JSON 解析失败: {func.arguments} | 错误: {e}")
+                args = {}  # 降级为空参数
+            
+            results.append({
+                "name": func.name,
+                "arguments": args
+            })
+
+            logging.info(f"Tool 调用成功 → {func.name} | 参数: {args}")
+
+        return results
 
 if __name__ == "__main__":
     model = QwenAPIInterface()

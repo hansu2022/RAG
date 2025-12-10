@@ -96,6 +96,7 @@ dependencies:
       - distlib==0.3.9
       - distro==1.9.0
       - docstring-parser==0.16
+      - docx2txt
       - dropout-layer-norm==0.1+corex.4.2.0
       - easydict==1.13
       - einops==0.6.1
@@ -290,6 +291,7 @@ dependencies:
       - pymilvus==2.5.4
       - pynacl==1.5.0
       - pynvml==11.5.3+corex.4.2.0
+      - pypdf
       - pyparsing==3.2.1
       - pyproject-api==1.9.0
       - pyproject-hooks==1.2.0
