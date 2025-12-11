@@ -5,31 +5,53 @@ import logging
 from typing import List, Optional
 
 # 基础配置
-from rag.milvus_base import MilvusDBBase, DEFAULT_URI, TOKEN
+from rag.milvus_base import MilvusDBBase
 from rag.model_interface.chat_api_interface import QwenAPIInterface
 from rag.model_interface.embedding_api_interface import QwenEmbedAPIInterface
 from rag.sci_inov.tool_call import tools, TOOL_PROMPT
-
-# 只需要这一个集合名
-KNOWLEDGE_COL_NAME = "Science_Knowledge" 
+from rag.sci_inov.config import settings
 
 logging.basicConfig(level=logging.INFO)
 
 class MilvusSciInovDB(MilvusDBBase):
-    def __init__(self, uri=DEFAULT_URI, token=TOKEN, **kwargs):
+    def __init__(self, uri=settings.MILVUS_URI, token=settings.MILVUS_TOKEN, **kwargs):
         # 初始化基类
-        super().__init__(uri, token, col_name=KNOWLEDGE_COL_NAME, **kwargs)
+        self.col_name = settings.COLLECTION_NAME
+        super().__init__(uri, token, col_name=self.col_name, **kwargs)
         
-        self.col_name = KNOWLEDGE_COL_NAME
+        self.col_name = settings.COLLECTION_NAME
         self.embed_model = QwenEmbedAPIInterface()
         self.chat_model = QwenAPIInterface()
         
         # 检查集合是否存在（由 ingest.py 创建）
         if not self.client.has_collection(self.col_name):
-            logging.warning(f"⚠️ 警告: 集合 {self.col_name} 不存在！请先运行 ingest.py 入库数据。")
+            logging.info(f"⚠️ 集合 {self.col_name} 不存在，正在自动创建...")
+            self.auto_create_collection()
         else:
             self.client.load_collection(self.col_name)
             logging.info(f"✅ 已加载知识库: {self.col_name}")
+    def auto_create_collection(self):
+        """自动创建集合"""
+        try:
+            embeddings = QwenLangChainEmbeddings()
+            # 这里的 connection_args 需要 token，我们从 self.token 获取 (基类中应已保存)
+            # 如果基类没有保存 token 到 self.token，这里直接用 settings.MILVUS_TOKEN
+            
+            vectorstore = Milvus.from_texts(
+                texts=["Init"], 
+                embedding=embeddings,
+                collection_name=self.col_name,
+                connection_args={"uri": self.uri, "token": self.token}, 
+                auto_id=False, 
+                primary_field="id",
+                enable_dynamic_field=True,
+                ids=["init_001"], 
+                index_params={"index_type": "HNSW", "metric_type": "L2", "params": {"M": 8, "efConstruction": 64}}
+            )
+            vectorstore.delete(["init_001"])
+            logging.info(f"✅ 集合 {self.col_name} 自动创建成功！")
+        except Exception as e:
+            logging.error(f"❌ 自动创建集合失败: {e}")
 
     # =========================================================
     #  核心修复：添加这些空方法，解决 "Can't instantiate abstract class" 报错
@@ -68,8 +90,11 @@ class MilvusSciInovDB(MilvusDBBase):
         # 构建过滤表达式
         filter_expr = ""
         if category:
-            filter_expr = f'category == "{category}"'
-            logging.info(f"使用过滤表达式: {filter_expr}")
+            if category in [settings.CATEGORY_PAPERS, settings.CATEGORY_CODE, settings.CATEGORY_GENERAL]:
+                 filter_expr = f'category == "{category}"'
+            else:
+                 logging.warning(f"检测到未知分类标签: {category}，忽略过滤条件")
+                 filter_expr = ""
 
         try:
             res = self.client.search(

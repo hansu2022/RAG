@@ -1,16 +1,14 @@
 from abc import ABC, abstractmethod
 import logging
 from pymilvus import MilvusClient
-
-
-DEFAULT_URI = "http://localhost:19530"
-TOKEN = "root:Milvus"
+from rag.sci_inov.config import settings
 
 class MilvusDBBase(ABC):
     def __init__(self, 
-                 uri=DEFAULT_URI, 
-                 token=TOKEN, 
-                 col_name="rag", 
+                 # 修改点：使用 settings 中的值作为默认参数
+                 uri=settings.MILVUS_URI, 
+                 token=settings.MILVUS_TOKEN, 
+                 col_name=settings.COLLECTION_NAME, 
                  **kwargs):
         self.client = MilvusClient(
             uri=uri,

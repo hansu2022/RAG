@@ -18,30 +18,31 @@ from langchain_milvus import Milvus
 from pymilvus import Collection, utility,connections
 
 from rag.model_interface.langchain_adapter import QwenLangChainEmbeddings
-# --- 1. 配置管理 ---
-@dataclass
-class AppConfig:
-    MILVUS_URI: str = os.getenv("MILVUS_URI", "http://localhost:19530")
-    COLLECTION_NAME: str = os.getenv("COLLECTION_NAME", "Science_Knowledge")
-    DOC_DIR: str = os.getenv("DOC_DIR", "/home/hansu/1.rag_code/rag/sci_inov/data")
-    LOG_FILE: str = "sync_service.log"
+from rag.sci_inov.config import settings
+# # --- 1. 配置管理 ---
+# @dataclass
+# class AppConfig:
+#     MILVUS_URI: str = os.getenv("MILVUS_URI", "http://localhost:19530")
+#     COLLECTION_NAME: str = os.getenv("COLLECTION_NAME", "Science_Knowledge")
+#     DOC_DIR: str = os.getenv("DOC_DIR", "/home/hansu/1.rag_code/rag/sci_inov/data")
+#     LOG_FILE: str = "sync_service.log"
     
-    # 切分配置
-    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "800"))
-    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "100"))
+#     # 切分配置
+#     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "800"))
+#     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "100"))
     
-    # 同步策略
-    FULL_SYNC: bool = os.getenv("FULL_SYNC", "False").lower() == "true"
+#     # 同步策略
+#     FULL_SYNC: bool = os.getenv("FULL_SYNC", "False").lower() == "true"
     
-    # 性能配置
-    MAX_WORKERS: int = 4
-    BATCH_SIZE_COUNT: int = 10       # 每次最多传 500 条
-    BATCH_SIZE_BYTES: int = 2 * 1024 * 1024 # 每次最多传 2MB 文本
+#     # 性能配置
+#     MAX_WORKERS: int = 4
+#     BATCH_SIZE_COUNT: int = 10       # 每次最多传 500 条
+#     BATCH_SIZE_BYTES: int = 2 * 1024 * 1024 # 每次最多传 2MB 文本
 
-config = AppConfig()
+# config = AppConfig()
 
-# --- 2. 日志配置 (Review 建议: 增加文件日志) ---
-file_handler = logging.FileHandler(config.LOG_FILE, encoding="utf-8")
+# --- 2. 日志配置 ---
+file_handler = logging.FileHandler(settings.LOG_FILE, encoding="utf-8")
 stream_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s')
 file_handler.setFormatter(formatter)
@@ -93,8 +94,18 @@ def process_single_file(file_path: str) -> List[Document]:
     """单个文件处理逻辑"""
     ext = os.path.splitext(file_path)[1].lower()
 
-    dir_name = os.path.basename(os.path.dirname(file_path))
-    category = dir_name if dir_name in ["papers", "code", "experts"] else "general"
+    # --- 分类逻辑 ---
+    try:
+        rel_path = os.path.relpath(file_path, settings.DOC_DIR)
+    except ValueError:
+        rel_path = file_path
+
+    if settings.CATEGORY_PAPERS in rel_path or ext == ".pdf":
+        category = settings.CATEGORY_PAPERS
+    elif settings.CATEGORY_CODE in rel_path or ext in [".py", ".java", ".cpp", ".js", ".html", ".css", ".sh"]:
+        category = settings.CATEGORY_CODE
+    else:
+        category = settings.CATEGORY_GENERAL
 
     try:
         file_hash = compute_file_hash(file_path)
@@ -127,6 +138,10 @@ def process_single_file(file_path: str) -> List[Document]:
                 "category": category,  # <--- 关键：写入分类标签
                 "doc_type": category   # 双重保险，方便后续扩展
             })
+            # --- 代码文件元数据增强 ---
+            if category == settings.CATEGORY_CODE:
+                # 简单移除 . 得到 py, cpp 等作为 language
+                doc.metadata['language'] = ext[1:]
             valid_docs.append(doc)
             
         return valid_docs
@@ -135,7 +150,7 @@ def process_single_file(file_path: str) -> List[Document]:
         logger.error(f"❌ 加载失败 {file_path}: {str(e)}")
         return []
 
-def load_docs_parallel(doc_dir: str) -> List[Document]:
+def load_docs_parallel(doc_dir: str = settings.DOC_DIR) -> List[Document]:
     """
     (Review 建议: 保持 ThreadPool，明确 Document 不可 Pickle)
     Document 对象包含 metadata 字典等，跨进程序列化不稳定，故坚持使用 ThreadPool
@@ -149,7 +164,7 @@ def load_docs_parallel(doc_dir: str) -> List[Document]:
     logger.info(f"🚀 [Loader] 扫描到 {len(all_files)} 个文件")
     
     results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=config.MAX_WORKERS) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=settings.MAX_WORKERS) as executor:
         futures = {executor.submit(process_single_file, fp): fp for fp in all_files}
         
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(all_files), desc="解析文件"):
@@ -171,8 +186,8 @@ def split_and_hash_docs(docs: List[Document]) -> Dict[str, Document]:
     
     # (Review 建议: 优化中文切分符)
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=config.CHUNK_SIZE,
-        chunk_overlap=config.CHUNK_OVERLAP,
+        chunk_size=settings.CHUNK_SIZE,
+        chunk_overlap=settings.CHUNK_OVERLAP,
         # 优先在句号、感叹号等中文结束符切分
         separators=["\n\n", "\n", "。", "！", "？", "，", " ", ""]
     )
@@ -242,7 +257,7 @@ def get_all_existing_ids(vectorstore, pk_field: str) -> Set[str]:
     existing_ids = set()
     try:
         # 关键修复：显式使用与写入时相同的连接别名 "default"
-        col = Collection(config.COLLECTION_NAME, using="default")
+        col = Collection(settings.COLLECTION_NAME, using="default")
         
         # 三连击：强制刷新统计 + 落盘 + 加载
         col.flush()
@@ -279,8 +294,8 @@ def sync_to_milvus(new_docs_map: Dict[str, Document]):
         if connections.has_connection("default"):
             connections.disconnect("default")
             
-        logger.info(f"🔌 正在连接 Milvus: {config.MILVUS_URI}")
-        connections.connect(alias="default", uri=config.MILVUS_URI)
+        logger.info(f"🔌 正在连接 Milvus: {settings.MILVUS_URI}")
+        connections.connect(alias="default", uri=settings.MILVUS_URI)
     except Exception as e:
         logger.error(f"❌ Milvus 连接失败: {e}")
         return
@@ -291,8 +306,8 @@ def sync_to_milvus(new_docs_map: Dict[str, Document]):
     # 此时需确保 schema 配置正确
     vectorstore = Milvus(
         embedding_function=embeddings,
-        collection_name=config.COLLECTION_NAME,
-        connection_args={"uri": config.MILVUS_URI},
+        collection_name=settings.COLLECTION_NAME,
+        connection_args={"uri": settings.MILVUS_URI},
         auto_id=False,
         # 显式指定主键名称，这里假设我们新建时用 "id"
         # 如果连接已有集合，需要与已有集合保持一致
@@ -303,7 +318,7 @@ def sync_to_milvus(new_docs_map: Dict[str, Document]):
 
 
     # 1. 动态检测主键名 (Review 建议)
-    pk_field = get_milvus_primary_key(config.COLLECTION_NAME)
+    pk_field = get_milvus_primary_key(settings.COLLECTION_NAME)
     logger.info(f"🔑 检测到 Milvus 主键字段: {pk_field}")
 
     # 2. 获取现有 ID
@@ -314,7 +329,7 @@ def sync_to_milvus(new_docs_map: Dict[str, Document]):
     
     # 3. 删除逻辑
     ids_to_delete = []
-    if config.FULL_SYNC:
+    if settings.FULL_SYNC:
         ids_to_delete = list(existing_ids - new_ids)
         if ids_to_delete:
             logger.warning(f"⚠️ [Full Sync] 将删除 {len(ids_to_delete)} 条旧数据")
@@ -334,7 +349,11 @@ def sync_to_milvus(new_docs_map: Dict[str, Document]):
         docs_to_add = [new_docs_map[uid] for uid in ids_to_add]
         logger.info(f"💾 准备写入 {len(docs_to_add)} 条数据...")
         
-        batches = batch_generator(docs_to_add, config.BATCH_SIZE_COUNT, config.BATCH_SIZE_BYTES)
+        batches = batch_generator(
+            docs_to_add, 
+            settings.BATCH_SIZE_COUNT, 
+            settings.BATCH_SIZE_BYTES
+        )
         
         for batch_docs in tqdm(batches, desc="写入 Milvus"):
             batch_ids = [doc.metadata["doc_id"] for doc in batch_docs]
@@ -348,18 +367,18 @@ def sync_to_milvus(new_docs_map: Dict[str, Document]):
         logger.info("✅ 无新增数据")
 
 if __name__ == "__main__":
-    if not os.path.exists(config.DOC_DIR):
-        logger.error(f"❌ 目录不存在: {config.DOC_DIR}")
+    if not os.path.exists(settings.DOC_DIR):
+        logger.error(f"❌ 目录不存在: {settings.DOC_DIR}")
         exit(1)
 
-    logger.info(f"启动同步 | 模式: {'全量' if config.FULL_SYNC else '增量'}")
+    logger.info(f"启动同步 | 模式: {'全量' if settings.FULL_SYNC else '增量'}")
 
-    raw_docs = load_docs_parallel(config.DOC_DIR)
+    raw_docs = load_docs_parallel(settings.DOC_DIR)
     if raw_docs:
         doc_map = split_and_hash_docs(raw_docs)
         sync_to_milvus(doc_map)
         try:
-            col = Collection(config.COLLECTION_NAME)
+            col = Collection(settings.COLLECTION_NAME)
             col.flush()
             logger.info("程序结束，执行最终 flush")
         except:
