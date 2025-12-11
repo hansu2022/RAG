@@ -17,8 +17,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_milvus import Milvus
 from pymilvus import Collection, utility,connections
 
-from rag.model_interface.langchain_adapter import QwenLangChainEmbeddings
-from rag.sci_inov.config import settings
+from model_interface.langchain_adapter import QwenLangChainEmbeddings
+from sci_inov.config import settings
 # # --- 1. 配置管理 ---
 # @dataclass
 # class AppConfig:

@@ -6,7 +6,7 @@ from openai import OpenAI
 from abc import ABC
 import json
 from typing import List
-from rag.sci_inov.config import settings
+from sci_inov.config import settings
 class ChatAPIInterface(ABC):
     """通用的对话API接口抽象类"""
     

@@ -5,11 +5,11 @@ import logging
 from typing import List, Optional
 
 # 基础配置
-from rag.milvus_base import MilvusDBBase
-from rag.model_interface.chat_api_interface import QwenAPIInterface, LocalChatInterface
-from rag.model_interface.embedding_api_interface import QwenEmbedAPIInterface, LocalEmbedInterface
-from rag.sci_inov.tool_call import tools, TOOL_PROMPT
-from rag.sci_inov.config import settings
+from milvus_base import MilvusDBBase
+from model_interface.chat_api_interface import QwenAPIInterface, LocalChatInterface
+from model_interface.embedding_api_interface import QwenEmbedAPIInterface, LocalEmbedInterface
+from sci_inov.tool_call import tools, TOOL_PROMPT
+from sci_inov.config import settings
 
 logging.basicConfig(level=logging.INFO)
 

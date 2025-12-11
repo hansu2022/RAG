@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import logging
 from pymilvus import MilvusClient
-from rag.sci_inov.config import settings
+from sci_inov.config import settings
 
 class MilvusDBBase(ABC):
     def __init__(self, 

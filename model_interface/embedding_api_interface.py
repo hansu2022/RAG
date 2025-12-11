@@ -6,7 +6,7 @@ from openai import OpenAI
 from abc import ABC
 from typing import List
 # 记得导入 settings
-from rag.sci_inov.config import settings
+from sci_inov.config import settings
 
 class EmbedAPIInterface(ABC):
     """通用的向量化API接口抽象类"""

@@ -1,7 +1,7 @@
 from typing import List
 from langchain_core.embeddings import Embeddings
-from rag.sci_inov.config import settings
-from rag.model_interface.embedding_api_interface import QwenEmbedAPIInterface, LocalEmbedInterface
+from sci_inov.config import settings
+from model_interface.embedding_api_interface import QwenEmbedAPIInterface, LocalEmbedInterface
 class QwenLangChainEmbeddings(Embeddings):
     """
     将项目中的 QwenEmbedAPIInterface 包装成 LangChain 标准接口

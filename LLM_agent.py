@@ -2,9 +2,9 @@ import os
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from rag.sci_inov.milvus_si import MilvusSciInovDB
-import rag.milvus_base
-from rag.model_interface.chat_api_interface import QwenAPIInterface, LocalChatInterface
+from sci_inov.milvus_si import MilvusSciInovDB
+import milvus_base
+from model_interface.chat_api_interface import QwenAPIInterface, LocalChatInterface
 import json
 import logging
 from abc import ABC, abstractmethod

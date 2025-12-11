@@ -1,8 +1,5 @@
-from fastapi import FastAPI
+from LLM_agent import QwenAPIAgent
 
-app = FastAPI()
-
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+if __name__ == "__main__":
+    agent = QwenAPIAgent()
+    print(agent.chat_history)

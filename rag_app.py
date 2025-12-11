@@ -6,8 +6,8 @@ import uvicorn
 import logging
 
 # 导入RAG Agent
-from rag.LLM_agent import QwenAPIAgent, LocalRAGAgent
-from rag.sci_inov.config import settings
+from LLM_agent import QwenAPIAgent, LocalRAGAgent
+from sci_inov.config import settings
 
 logging.basicConfig(level=logging.INFO)
 
