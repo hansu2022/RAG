@@ -5,6 +5,8 @@ import getpass
 from openai import OpenAI
 from abc import ABC
 from typing import List
+# 记得导入 settings
+from rag.sci_inov.config import settings
 
 class EmbedAPIInterface(ABC):
     """通用的向量化API接口抽象类"""
@@ -26,6 +28,11 @@ class EmbedAPIInterface(ABC):
     
     def get_api_key(self) -> str:
         """获取API密钥"""
+        # 如果是本地模式且没有设置环境变量，可以直接跳过检查或返回默认值
+        if self.api_key_env_name in ["LOCAL_LLM_API_KEY", "LOCAL_EMBED_API_KEY"]:
+             api_key = os.getenv(self.api_key_env_name)
+             return api_key if api_key else "EMPTY"
+
         logging.info(f"正在初始化API key")
         api_key = os.getenv(self.api_key_env_name)
         if api_key:
@@ -39,13 +46,21 @@ class EmbedAPIInterface(ABC):
         return api_key
     
     def embed(self, query: str | List[str], squeeze=False):
-        """发起对话"""
-        completion = self.client.embeddings.create(
-            model=self.model_name,
-            input=query,  # Both str and list
-            dimensions=self.embed_dim,
-            encoding_format="float"
-        )
+        """发起向量化请求"""
+        # 1. 这里必须先定义 kwargs 字典！
+        kwargs = {
+            "model": self.model_name,
+            "input": query,  # Both str and list
+            "encoding_format": "float"
+        }
+        
+        # 2. 只有当 embed_dim 不为 None 时，才把 dimensions 加进去
+        # (vLLM 的 BGE 模型不支持 dimensions 参数，所以 LocalEmbedInterface 会设为 None)
+        if self.embed_dim is not None:
+            kwargs["dimensions"] = self.embed_dim
+
+        # 3. 使用 **kwargs 解包参数传给 create 方法
+        completion = self.client.embeddings.create(**kwargs)
         return self.unwrap_output(completion, squeeze)
     
     def unwrap_output(self, output):
@@ -69,8 +84,37 @@ class QwenEmbedAPIInterface(EmbedAPIInterface):
         embed_list = [e.embedding for e in output.data]
         return embed_list
 
+class LocalEmbedInterface(EmbedAPIInterface):
+    """
+    本地 vLLM Embedding 接口 (兼容 OpenAI 格式)
+    """
+    def __init__(self):
+        super().__init__(
+            model_name=settings.LOCAL_EMBED_MODEL_NAME,
+            base_url=settings.LOCAL_EMBED_BASE_URL,
+            # 关键修改：设为 None，避免向 vLLM 传递 dimensions 参数
+            embed_dim=None, 
+            api_key_env_name="LOCAL_EMBED_API_KEY"
+        )
+    
+    def get_api_key(self) -> str:
+        return settings.LOCAL_EMBED_API_KEY
+        
+    def unwrap_output(self, output, squeeze=False):
+        """解析 vLLM/OpenAI 格式的 embedding 输出"""
+        if not output or not output.data:
+            return None
+        if squeeze and len(output.data) == 1:
+            return output.data[0].embedding
+        embed_list = [e.embedding for e in output.data]
+        return embed_list
+
 if __name__ == "__main__":
-    model = QwenEmbedAPIInterface()
-    rep = model.embed("好吃")
-    print(rep)
-    print(len(rep))
+    # 测试代码
+    try:
+        model = QwenEmbedAPIInterface()
+        # 如果没有 API KEY 这里可能会报错，可以注释掉
+        # rep = model.embed("好吃")
+        # print(len(rep))
+    except Exception as e:
+        print(f"测试跳过: {e}")

@@ -6,7 +6,8 @@ import uvicorn
 import logging
 
 # 导入RAG Agent
-from rag.LLM_agent import QwenAPIAgent 
+from rag.LLM_agent import QwenAPIAgent, LocalRAGAgent
+from rag.sci_inov.config import settings
 
 logging.basicConfig(level=logging.INFO)
 
@@ -15,16 +16,21 @@ app = FastAPI(title="RAG Agent Service (Qwen + Milvus)")
 
 # 2. 初始化 RAG Agent (全局单例)
 try:
-    # 这个Agent已经集成了QwenChatModel和MilvusSciInovDB的Tool Call逻辑
-    rag_agent = QwenAPIAgent(
+    if settings.USE_LOCAL_MODEL:
+        logging.info(f"正在初始化本地 RAG Agent (LLM: {settings.LOCAL_LLM_MODEL_NAME})...")
+        rag_agent = LocalRAGAgent(
         system_prompt="你是一位专业的科研信息检索和问答助手。请始终利用检索到的最新信息（如果存在）来回答用户的问题，并保持中文回复的专业性。"
-    )
-    logging.info("Qwen RAG Agent 初始化成功。")
+        )
+    else:
+        logging.info("正在初始化云端 Qwen RAG Agent...")
+        rag_agent = QwenAPIAgent(
+        system_prompt="你是一位专业的科研信息检索和问答助手。请始终利用检索到的最新信息（如果存在）来回答用户的问题，并保持中文回复的专业性。"
+        )
+    
+    logging.info("RAG Agent 初始化成功。")
 except Exception as e:
     logging.error(f"RAG Agent 初始化失败: {e}")
-    # 如果初始化失败，应用仍然可以运行，但查询会失败
     rag_agent = None
-
 
 # 3. 定义请求体 Pydantic Model
 class ChatRequest(BaseModel):

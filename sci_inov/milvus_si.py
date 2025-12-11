@@ -6,8 +6,8 @@ from typing import List, Optional
 
 # 基础配置
 from rag.milvus_base import MilvusDBBase
-from rag.model_interface.chat_api_interface import QwenAPIInterface
-from rag.model_interface.embedding_api_interface import QwenEmbedAPIInterface
+from rag.model_interface.chat_api_interface import QwenAPIInterface, LocalChatInterface
+from rag.model_interface.embedding_api_interface import QwenEmbedAPIInterface, LocalEmbedInterface
 from rag.sci_inov.tool_call import tools, TOOL_PROMPT
 from rag.sci_inov.config import settings
 
@@ -19,9 +19,16 @@ class MilvusSciInovDB(MilvusDBBase):
         self.col_name = settings.COLLECTION_NAME
         super().__init__(uri, token, col_name=self.col_name, **kwargs)
         
-        self.col_name = settings.COLLECTION_NAME
-        self.embed_model = QwenEmbedAPIInterface()
-        self.chat_model = QwenAPIInterface()
+
+        if settings.USE_LOCAL_MODEL:
+            logging.info(f"🚀 [MilvusDB] 使用本地模型: LLM={settings.LOCAL_LLM_MODEL_NAME}, Embed={settings.LOCAL_EMBED_MODEL_NAME}")
+            self.embed_model = LocalEmbedInterface()
+            # 这里的 chat_model 主要用于 Milvus 内部的工具调用决策（如果需要的话）
+            self.chat_model = LocalChatInterface()
+        else:
+            logging.info("☁️ [MilvusDB] 使用云端 Qwen 模型")
+            self.embed_model = QwenEmbedAPIInterface()
+            self.chat_model = QwenAPIInterface()
         
         # 检查集合是否存在（由 ingest.py 创建）
         if not self.client.has_collection(self.col_name):
@@ -119,7 +126,16 @@ class MilvusSciInovDB(MilvusDBBase):
                     })
                 results.append(formatted_hits)
             
-            return results[0] if results else []
+            # --- 日志代码---
+            final_res = results[0] if results else []
+            logging.info(f"📚 [Milvus] 检索到 {len(final_res)} 条记录:")
+            for idx, item in enumerate(final_res):
+                # 只打印前100个字符避免刷屏
+                preview = item['content'][:100].replace('\n', ' ') + "..."
+                logging.info(f"   [{idx+1}] Score:{item['score']:.4f} | Source:{item['source']} | Content: {preview}")
+            # --- 日志代码---
+
+            return final_res
 
         except Exception as e:
             logging.error(f"❌ 搜索失败: {e}")

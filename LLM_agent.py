@@ -4,7 +4,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rag.sci_inov.milvus_si import MilvusSciInovDB
 import rag.milvus_base
-import rag.model_interface.chat_api_interface
+from rag.model_interface.chat_api_interface import QwenAPIInterface, LocalChatInterface
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -196,6 +196,12 @@ class QwenAPIAgent(LLM_agent):
             final_query = f"{retrieved_context}请严格根据以上检索到的知识，回答用户问题：{query}"
         else:
             final_query = query # 如果没有检索到，使用原始查询
+
+        # --- 日志代码---
+        logging.info("="*50)
+        logging.info(f"🤖 [Agent Input] 发送给 LLM 的完整 Prompt:\n{final_query}")
+        logging.info("-" * 20)
+        # --- 日志代码 ---
         
         # 4. 调用模型获取回复（这是 LLM 的第二次调用，进行答案生成）
         response = self.model.chat(
@@ -203,7 +209,10 @@ class QwenAPIAgent(LLM_agent):
             chat_history=session_history,
             system_prompt=applied_system_prompt
         )
-        
+        # --- 日志代码---
+        logging.info(f"🗣️ [Agent Output] LLM 回复:\n{response}")
+        logging.info("="*50)
+        # --- 日志代码---
         # --- RAG 核心逻辑结束 ---
         
         # 5. 更新聊天记录
@@ -224,7 +233,64 @@ class QwenAPIAgent(LLM_agent):
         if self.history_path:
             return self.save_chat_history(self.history_path, create_dir=True, overwrite=True)
         return False
+class LocalRAGAgent(LLM_agent):
+    def __init__(self, history_path="storage/local_chat_history.json", system_prompt="You are a helpful assistant."):
+        # 1. 传入 LocalChatInterface 类
+        super().__init__(
+            LocalChatInterface,
+            history_path=history_path,
+            use_api=True,
+            system_prompt=system_prompt
+        )
+        # 2. 初始化数据库 (MilvusSciInovDB 内部会自动读取配置使用本地 Embedding)
+        self.db = MilvusSciInovDB()
+    
+    def _format_context(self, search_results):
+        # ... (与 QwenAPIAgent._format_context 完全一致的代码) ...
+        if not search_results: return ""
+        context_str = "检索到的相关参考资料：\n"
+        for i, item in enumerate(search_results, 1):
+            content = item.get('content', item.get('summary', ''))
+            source = item.get('source', item.get('url', '未知来源'))
+            category = item.get('category', 'general')
+            context_str += f"【资料 {i}】(类型: {category})\n来源: {source}\n内容摘要: {content}\n--------------------------------\n"
+        return context_str + "\n"
 
+    def chat(self, query: str, session_id: str, save_history: bool = True, system_prompt: str = None) -> str:
+        # ... (与 QwenAPIAgent.chat 逻辑完全一致，除了类名差异) ...
+        session_history = self.chat_history.get(session_id, [])
+        applied_system_prompt = system_prompt if system_prompt is not None else self.system_prompt
+        
+        # 1. 检索
+        search_res_list = self.db.search(query, top_k=3)
+        search_results = search_res_list[0] if search_res_list and search_res_list[0] else []
+        
+        # 2. 格式化
+        retrieved_context = self._format_context(search_results)
+        
+        # 3. 构造 Query
+        if retrieved_context:
+            final_query = f"{retrieved_context}请严格根据以上检索到的知识，回答用户问题：{query}"
+        else:
+            final_query = query
+            
+        # 4. 生成
+        response = self.model.chat(
+            query=final_query,
+            chat_history=session_history,
+            system_prompt=applied_system_prompt
+        )
+        
+        # 5. 记录与保存
+        session_history.extend([
+            {'role': 'user', 'content': query},
+            {'role': 'assistant', 'content': response}
+        ])
+        self.chat_history[session_id] = session_history
+        if save_history and self.history_path:
+            self.save_chat_history(self.history_path, create_dir=True, overwrite=True)
+
+        return response
 
 if __name__ == "__main__":
     agent = QwenAPIAgent()

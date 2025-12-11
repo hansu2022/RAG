@@ -11,9 +11,20 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VALID_CATEGORIES = ["papers", "code", "general"]
 
 class AppConfig(BaseSettings):
-    # --- 基础开关 ---
-    LOCAL_MODE: bool = Field(default=False, description="本地部署")
     
+    # --- 本地模型配置 (vLLM) ---
+    USE_LOCAL_MODEL: bool = Field(default=True, description="是否开启本地模型模式")
+
+    # 本地 LLM 配置 (Qwen)
+    LOCAL_LLM_BASE_URL: str = Field(default="http://localhost:8001/v1", description="本地 LLM API 地址")
+    LOCAL_LLM_MODEL_NAME: str = Field(default="Qwen/Qwen2.5-7B-Instruct", description="本地 LLM 模型名称(需与vLLM启动参数一致)")
+    LOCAL_LLM_API_KEY: str = Field(default="EMPTY", description="本地 LLM API Key (vLLM默认通常为EMPTY)")
+
+    # 本地 Embedding 配置 (BGE)
+    LOCAL_EMBED_BASE_URL: str = Field(default="http://localhost:8002/v1", description="本地 Embedding API 地址")
+    LOCAL_EMBED_MODEL_NAME: str = Field(default="BAAI/bge-large-zh-v1.5", description="本地 Embedding 模型名称")
+    LOCAL_EMBED_API_KEY: str = Field(default="EMPTY", description="本地 Embedding API Key")
+
     # --- 基础路径配置 ---
     PROJECT_ROOT: str = Field(default=BASE_DIR, description="项目根目录")
     

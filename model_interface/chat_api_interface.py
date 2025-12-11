@@ -6,6 +6,7 @@ from openai import OpenAI
 from abc import ABC
 import json
 from typing import List
+from rag.sci_inov.config import settings
 class ChatAPIInterface(ABC):
     """通用的对话API接口抽象类"""
     
@@ -116,7 +117,63 @@ class QwenAPIInterface(ChatAPIInterface):
             logging.info(f"Tool 调用成功 → {func.name} | 参数: {args}")
 
         return results
+class LocalChatInterface(ChatAPIInterface):
+    """
+    本地 vLLM 对话接口
+    """
+    def __init__(self):
+        super().__init__(
+            model_name=settings.LOCAL_LLM_MODEL_NAME,
+            base_url=settings.LOCAL_LLM_BASE_URL,
+            api_key_env_name="LOCAL_LLM_API_KEY" # 这里实际上会被 get_api_key 覆盖
+        )
 
+    def get_api_key(self) -> str:
+        """重写获取 Key 的逻辑，直接读取配置"""
+        return settings.LOCAL_LLM_API_KEY
+
+    def tool_call(self, query: str, tools: list, system_prompt: str = "You are a helpful assistant.") -> List[dict]:
+        """
+        本地模型的 Function Calling 实现。
+        vLLM 兼容 OpenAI 格式，因此逻辑与 QwenAPIInterface 基本一致。
+        """
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": query}
+                ],
+                tools=tools,
+                tool_choice="auto" 
+            )
+            
+            message = completion.choices[0].message
+            if not hasattr(message, "tool_calls") or not message.tool_calls:
+                logging.info("Local LLM 决定不调用任何工具")
+                return []
+
+            results = []
+            for tool_call in message.tool_calls:
+                if tool_call.type != "function":
+                    continue
+                    
+                func = tool_call.function
+                try:
+                    args = json.loads(func.arguments)
+                except json.JSONDecodeError as e:
+                    logging.error(f"工具参数解析失败: {func.arguments}")
+                    args = {}
+                
+                results.append({
+                    "name": func.name,
+                    "arguments": args
+                })
+            return results
+
+        except Exception as e:
+            logging.error(f"Local LLM 工具调用出错: {e}")
+            return []
 if __name__ == "__main__":
     model = QwenAPIInterface()
     model.chat("你好")
