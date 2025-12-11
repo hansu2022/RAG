@@ -1,15 +1,18 @@
 from typing import List
 from langchain_core.embeddings import Embeddings
-from rag.model_interface.embedding_api_interface import QwenEmbedAPIInterface
-
+from rag.sci_inov.config import settings
+from rag.model_interface.embedding_api_interface import QwenEmbedAPIInterface, LocalEmbedInterface
 class QwenLangChainEmbeddings(Embeddings):
     """
     将项目中的 QwenEmbedAPIInterface 包装成 LangChain 标准接口
     以便在 ingest.py 中使用
     """
     def __init__(self):
-        # 初始化你原本的接口
-        self.client = QwenEmbedAPIInterface()
+        # ✅ 根据配置选择正确的模型
+        if settings.USE_LOCAL_MODEL:
+            self.client = LocalEmbedInterface()
+        else:
+            self.client = QwenEmbedAPIInterface()
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """LangChain 用于批量文档向量化的标准方法"""

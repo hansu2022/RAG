@@ -43,7 +43,7 @@ class AppConfig(BaseSettings):
     COLLECTION_NAME: str = Field(default="Science_Knowledge", description="Milvus 集合名称")
     
     # --- 文本切分与处理配置 ---
-    CHUNK_SIZE: int = Field(default=800, description="文本切分块大小")
+    CHUNK_SIZE: int = Field(default=400, description="文本切分块大小")
     CHUNK_OVERLAP: int = Field(default=100, description="文本切分重叠大小")
 
     # --- 同步策略---

@@ -273,6 +273,11 @@ class LocalRAGAgent(LLM_agent):
             final_query = f"{retrieved_context}请严格根据以上检索到的知识，回答用户问题：{query}"
         else:
             final_query = query
+                # --- 日志代码---
+        logging.info("="*50)
+        logging.info(f"🤖 [Agent Input] 发送给 LLM 的完整 Prompt:\n{final_query}")
+        logging.info("-" * 20)
+        # --- 日志代码 ---
             
         # 4. 生成
         response = self.model.chat(
@@ -281,6 +286,11 @@ class LocalRAGAgent(LLM_agent):
             system_prompt=applied_system_prompt
         )
         
+        # --- 日志代码---
+        logging.info(f"🗣️ [Agent Output] LLM 回复:\n{response}")
+        logging.info("="*50)
+        # --- 日志代码---
+
         # 5. 记录与保存
         session_history.extend([
             {'role': 'user', 'content': query},

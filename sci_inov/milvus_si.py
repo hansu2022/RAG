@@ -176,7 +176,7 @@ class MilvusSciInovDB(MilvusDBBase):
             
             # 保底策略：如果问题像是在问知识，即使没调工具也强行搜
             if not should_search:
-                keywords = ["是什么", "解释", "原理", "代码", "论文", "介绍", "如何", "怎么"]
+                keywords = ["是什么", "解释", "原理", "代码", "论文", "介绍", "如何", "怎么", "什么", "讲了", "内容", "分析"]
                 if any(k in q for k in keywords):
                     should_search = True
 
